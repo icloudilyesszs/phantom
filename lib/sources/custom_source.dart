@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'music_source.dart';
+import '../models/track.dart';
 
 class CustomSource implements MusicSource {
   @override
@@ -74,7 +75,7 @@ class CustomSource implements MusicSource {
         return results;
       }
     } catch (e) {
-      print('Erreur recherche YouTube Music: $e');
+      print('Erreur recherche: $e');
     }
     return [];
   }
@@ -85,7 +86,7 @@ class CustomSource implements MusicSource {
   }
 
   @override
-  Future<String?> streamUri(Track track) async {
+  Future<Uri> streamUri(Track track) async {
     final url = Uri.parse('https://music.youtube.com/youtubei/v1/player?key=AIzaSyA41KXq462b13wV8o3_2J0vN2V_K4c5Y9Q');
     
     final body = {
@@ -119,12 +120,15 @@ class CustomSource implements MusicSource {
         audioFormats.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
 
         if (audioFormats.isNotEmpty) {
-          return audioFormats.first['url'];
+          final rawUrl = audioFormats.first['url'] as String?;
+          if (rawUrl != null) {
+            return Uri.parse(rawUrl);
+          }
         }
       }
     } catch (e) {
-      print('Erreur stream audio: $e');
+      print('Erreur stream: $e');
     }
-    return null;
+    throw Exception("Impossible de récupérer le flux audio");
   }
 }
