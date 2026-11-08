@@ -8,7 +8,7 @@ class CustomSource implements MusicSource {
   final String id = 'custom_youtube';
 
   @override
-  final String name = 'Mon YouTube Music Perso';
+  final String name = 'YouTube Music (Complet)';
 
   @override
   final bool canSearch = true;
@@ -26,7 +26,8 @@ class CustomSource implements MusicSource {
           "gl": "FR"
         }
       },
-      "query": query
+      "query": query,
+      "params": "EgWKAQIIAWoMEAMQBBAJEA4QChAF" // Le filtre exact de BitChord pour les chansons
     };
 
     try {
@@ -40,30 +41,32 @@ class CustomSource implements MusicSource {
         final data = jsonDecode(response.body);
         List<Track> results = [];
 
-        final contents = data['contents']?['tabbedSearchResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] ?? [];
+        final tabs = data['contents']?['tabbedSearchResultsRenderer']?['tabs'] as List? ?? [];
+        if (tabs.isEmpty) return [];
         
-        for (var section in contents) {
-          final musicShelf = section['musicShelfRenderer'];
-          if (musicShelf != null) {
-            final items = musicShelf['contents'] as List? ?? [];
-            for (var item in items) {
-              final songRenderer = item['musicResponsiveListItemRenderer'];
-              if (songRenderer != null) {
-                final videoId = songRenderer['playlistItemData']?['videoId'] ?? 
-                                songRenderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['navigationEndpoint']?['watchEndpoint']?['videoId'];
-                
-                final title = songRenderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Titre inconnu';
-                
-                final artist = songRenderer['flexColumns']?[1]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Artiste inconnu';
+        final sectionList = tabs[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] as List? ?? [];
+        
+        for (var section in sectionList) {
+          final items = section['musicShelfRenderer']?['contents'] as List? ?? [];
+          for (var item in items) {
+            final song = item['musicResponsiveListItemRenderer'];
+            if (song != null) {
+              final videoId = song['playlistItemData']?['videoId'];
+              final title = song['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'];
+              
+              var artist = 'Artiste inconnu';
+              final runs = song['flexColumns']?[1]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs'] as List?;
+              if (runs != null && runs.isNotEmpty) {
+                artist = runs[0]?['text'] ?? 'Artiste inconnu';
+              }
 
-                if (videoId != null) {
-                  results.add(Track(
-                    id: videoId,
-                    title: title,
-                    artist: artist,
-                    sourceId: id,
-                  ));
-                }
+              if (videoId != null && title != null) {
+                results.add(Track(
+                  id: videoId.toString(),
+                  title: title.toString(),
+                  artist: artist.toString(),
+                  sourceId: id,
+                ));
               }
             }
           }
@@ -71,7 +74,7 @@ class CustomSource implements MusicSource {
         return results;
       }
     } catch (e) {
-      print('Erreur recherche: $e');
+      print('Erreur: $e');
     }
     return [];
   }
@@ -106,25 +109,17 @@ class CustomSource implements MusicSource {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final adaptiveFormats = data['streamingData']?['adaptiveFormats'] as List? ?? [];
+        final formats = data['streamingData']?['adaptiveFormats'] as List? ?? [];
         
-        final audioFormats = adaptiveFormats.where((format) {
-          final mimeType = format['mimeType'] as String? ?? '';
-          return mimeType.contains('audio');
-        }).toList();
-
+        final audioFormats = formats.where((f) => (f['mimeType'] as String? ?? '').contains('audio')).toList();
         audioFormats.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
 
         if (audioFormats.isNotEmpty) {
           final rawUrl = audioFormats.first['url'] as String?;
-          if (rawUrl != null) {
-            return Uri.parse(rawUrl);
-          }
+          if (rawUrl != null) return Uri.parse(rawUrl);
         }
       }
-    } catch (e) {
-      print('Erreur stream: $e');
-    }
+    } catch (e) {}
     throw Exception("Impossible de récupérer le flux audio");
   }
 }
