@@ -94,40 +94,27 @@ class CustomSource implements MusicSource {
 
   @override
   Future<Uri> streamUri(Track track) async {
-    final url = Uri.parse('https://music.youtube.com/youtubei/v1/player?key=AIzaSyA41KXq462b13wV8o3_2J0vN2V_K4c5Y9Q');
+    final url = Uri.parse('https://pipedapi.kavin.rocks/streams/${track.id}');
     
-    final body = {
-      "context": {
-        "client": {
-          "clientName": "WEB_REMIX",
-          "clientVersion": "1.20240220.01.00",
-          "hl": "fr",
-          "gl": "FR"
-        }
-      },
-      "videoId": track.id
-    };
-
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
-      );
-
+      final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final formats = data['streamingData']?['adaptiveFormats'] as List? ?? [];
+        final audioStreams = data['audioStreams'] as List? ?? [];
         
-        final audioFormats = formats.where((f) => (f['mimeType'] as String? ?? '').contains('audio')).toList();
-        audioFormats.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
-
-        if (audioFormats.isNotEmpty) {
-          final rawUrl = audioFormats.first['url'] as String?;
-          if (rawUrl != null) return Uri.parse(rawUrl);
+        // Trie pour récupérer le flux audio avec la meilleure qualité
+        audioStreams.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
+        
+        if (audioStreams.isNotEmpty) {
+          final rawUrl = audioStreams.first['url'] as String?;
+          if (rawUrl != null) {
+            return Uri.parse(rawUrl);
+          }
         }
       }
-    } catch (e) {}
-    throw Exception("Impossible de récupérer le flux audio");
+    } catch (e) {
+      print('Erreur stream Piped: $e');
+    }
+    throw Exception("Impossible de récupérer le flux audio YouTube");
   }
 }
