@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt_explode;
 import 'music_source.dart';
 import '../models/track.dart';
 
@@ -33,12 +34,7 @@ class CustomSource implements MusicSource {
     try {
       final response = await http.post(
         url,
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-          "Origin": "https://music.youtube.com",
-          "Referer": "https://music.youtube.com/",
-        },
+        headers: {"Content-Type": "application/json"},
         body: jsonEncode(body),
       );
 
@@ -115,62 +111,20 @@ class CustomSource implements MusicSource {
 
   @override
   Future<Uri> streamUri(Track track) async {
-    final url = Uri.parse('https://music.youtube.com/youtubei/v1/player?prettyPrint=false');
-
-    final body = {
-      "context": {
-        "client": {
-          "clientName": "WEB_REMIX",
-          "clientVersion": "1.20240724.01.00",
-          "hl": "fr",
-          "gl": "FR"
-        }
-      },
-      "videoId": track.id,
-      "playbackContext": {
-        "contentPlaybackContext": {
-          "pyramids": "false",
-          "signatureTimestamp": 19900
-        }
-      }
-    };
-
+    final yt = yt_explode.YoutubeExplode();
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-          "Origin": "https://music.youtube.com",
-          "Referer": "https://music.youtube.com/",
-        },
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final adaptiveFormats = data['streamingData']?['adaptiveFormats'] as List? ?? [];
-        final formats = data['streamingData']?['formats'] as List? ?? [];
-
-        // Combine tous les formats disponibles et trie par bitrate décroissant
-        final allFormats = [...adaptiveFormats, ...formats];
-        
-        final audioStreams = allFormats.where((f) => 
-          f['url'] != null && 
-          ((f['mimeType'] ?? '').toString().toLowerCase().contains('audio') || 
-           (f['mimeType'] ?? '').toString().toLowerCase().contains('mp4'))
-        ).toList();
-
-        if (audioStreams.isNotEmpty) {
-          audioStreams.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
-          final directUrl = audioStreams.first['url'].toString();
-          return Uri.parse(directUrl);
-        }
-      }
+      final manifest = await yt.videos.streamsClient.getManifest(track.id);
+      
+      // On récupère directement le meilleur flux audio disponible géré par YoutubeExplode
+      final audioStream = manifest.audioOnly.withHighestBitrate();
+      final streamUrl = audioStream.url;
+      
+      yt.close();
+      return streamUrl;
     } catch (e) {
-      print('Erreur streamUri: $e');
+      yt.close();
+      print('Erreur streamUri YoutubeExplode: $e');
+      throw Exception("Impossible de lire ce morceau.");
     }
-
-    throw Exception("Impossible de lire ce morceau.");
   }
 }
