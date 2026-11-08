@@ -92,7 +92,24 @@ class AudiusSource implements MusicSource {
   @override
   Future<Uri> streamUri(Track track) async {
     final host = await _getHost();
-    return Uri.parse('$host/v1/tracks/${track.id}/stream')
+    final uri = Uri.parse('$host/v1/tracks/${track.id}/stream')
         .replace(queryParameters: {'app_name': _appName});
+    // Audius renvoie une redirection vers le vrai fichier audio.
+    // On la suit nous-mêmes : certains lecteurs (PC) bloquent dessus.
+    final client = http.Client();
+    try {
+      final req = http.Request('GET', uri)..followRedirects = false;
+      final res = await client.send(req).timeout(const Duration(seconds: 10));
+      final location = res.headers['location'];
+      await res.stream.drain<void>().catchError((_) {});
+      if (res.isRedirect && location != null) {
+        return uri.resolve(location);
+      }
+    } catch (_) {
+      // on garde le lien de base
+    } finally {
+      client.close();
+    }
+    return uri;
   }
 }
