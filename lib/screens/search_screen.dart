@@ -18,6 +18,7 @@ class _SearchScreenState extends State<SearchScreen> {
   MusicSource _source = Sources.searchable.first;
   List<Track> _results = [];
   bool _loading = false;
+  bool _searched = false;
   String? _error;
 
   Future<void> _search() async {
@@ -30,7 +31,10 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       final r = await _source.search(q);
       if (!mounted) return;
-      setState(() => _results = r);
+      setState(() {
+        _results = r;
+        _searched = true;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'La recherche a échoué. Vérifie ta connexion.');
@@ -65,7 +69,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   icon: const Icon(Icons.clear),
                   onPressed: () {
                     _controller.clear();
-                    setState(() => _results = []);
+                    setState(() {
+                      _results = [];
+                      _searched = false;
+                    });
                   },
                 ),
                 filled: true,
@@ -108,7 +115,9 @@ class _SearchScreenState extends State<SearchScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     if (_results.isEmpty) {
-      return const Center(child: Text('Cherche un son 👻'));
+      return Center(
+        child: Text(_searched ? 'Aucun résultat' : 'Cherche un son 👻'),
+      );
     }
     return ListView.builder(
       itemCount: _results.length,
