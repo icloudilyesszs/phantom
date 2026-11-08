@@ -62,10 +62,17 @@ class PlayerService extends ChangeNotifier {
         final uri = await Sources.byId(track.sourceId).streamUri(track);
         source = AudioSource.uri(uri, tag: tag);
       }
-      await player.setAudioSource(source);
+      // preload: false = on ne bloque pas en attendant que tout soit chargé
+      await player
+          .setAudioSource(source, preload: false)
+          .timeout(const Duration(seconds: 20));
       loading = false;
       notifyListeners();
-      unawaited(player.play());
+      unawaited(player.play().catchError((Object e) {
+        error = 'Impossible de lire "${track.title}"';
+        debugPrint('Erreur lecture: $e');
+        notifyListeners();
+      }));
     } catch (e) {
       loading = false;
       error = 'Impossible de lire "${track.title}"';
