@@ -64,7 +64,7 @@ class CustomSource implements MusicSource {
                     id: videoId,
                     title: title,
                     artist: artist,
-                    artUrl: artUrl,
+                    artworkUrl: artUrl, // Corrigé ici pour correspondre au modèle Track de Phantom
                     source: id,
                   ));
                 }
