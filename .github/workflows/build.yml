@@ -1,0 +1,108 @@
+name: Construire Phantom
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  iphone:
+    name: Appli iPhone (.ipa)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Préparer le projet iPhone
+        run: |
+          flutter create --platforms=ios --org com.phantom --project-name phantom .
+          flutter pub get
+          dart run flutter_launcher_icons
+          PLIST=ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Phantom" $PLIST
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName Phantom" $PLIST
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" $PLIST || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" $PLIST
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" $PLIST
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          flutter build ios --config-only --release --no-codesign
+          sed -i '' "s/^# platform :ios.*/platform :ios, '15.0'/" ios/Podfile
+          cd ios && pod install && cd ..
+
+      - name: Construire
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry Phantom.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Phantom-iPhone
+          path: Phantom.ipa
+
+  windows:
+    name: Appli PC (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Préparer le projet Windows
+        shell: pwsh
+        run: |
+          flutter create --platforms=windows --org com.phantom --project-name phantom .
+          flutter pub get
+          dart run flutter_launcher_icons
+          (Get-Content windows/runner/main.cpp) -replace 'L"phantom"', 'L"Phantom"' | Set-Content windows/runner/main.cpp
+          (Get-Content windows/runner/Runner.rc) -replace '"phantom"', '"Phantom"' | Set-Content windows/runner/Runner.rc
+          (Get-Content windows/CMakeLists.txt) -replace 'set\(BINARY_NAME "phantom"\)', 'set(BINARY_NAME "Phantom")' | Set-Content windows/CMakeLists.txt
+
+      - name: Tests
+        run: flutter test
+
+      - name: Construire
+        run: flutter build windows --release
+
+      - name: Créer l'installateur
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\phantom.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Phantom-PC
+          path: installer/Output/Phantom-Setup.exe
+
+  publier:
+    name: Publier les fichiers
+    needs: [iphone, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Phantom 1.0.${{ github.run_number }}
+          body: |
+            - **Phantom.ipa** : appli iPhone, à installer avec Sideloadly
+            - **Phantom-Setup.exe** : installateur pour PC Windows
+          files: |
+            out/Phantom.ipa
+            out/Phantom-Setup.exe
