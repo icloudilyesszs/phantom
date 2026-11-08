@@ -33,8 +33,10 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" $PLIST
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
           flutter build ios --config-only --release --no-codesign
-          sed -i '' "s/^# platform :ios.*/platform :ios, '15.0'/" ios/Podfile
-          cd ios && pod install && cd ..
+          if [ -f ios/Podfile ]; then
+            sed -i '' "s/^# platform :ios.*/platform :ios, '15.0'/" ios/Podfile
+            cd ios && pod install && cd ..
+          fi
 
       - name: Construire
         run: |
@@ -62,7 +64,7 @@ jobs:
       - name: Préparer le projet Windows
         shell: pwsh
         run: |
-          flutter create --platforms=windows --org com.phantom --project-name phantom .
+          flutter create --platforms=windows,ios --org com.phantom --project-name phantom .
           flutter pub get
           dart run flutter_launcher_icons
           (Get-Content windows/runner/main.cpp) -replace 'L"phantom"', 'L"Phantom"' | Set-Content windows/runner/main.cpp
