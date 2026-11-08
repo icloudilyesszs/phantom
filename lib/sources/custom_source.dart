@@ -55,15 +55,13 @@ class CustomSource implements MusicSource {
                 final title = songRenderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Titre inconnu';
                 
                 final artist = songRenderer['flexColumns']?[1]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Artiste inconnu';
-                
-                final thumbnails = songRenderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
-                final artUrl = thumbnails?.isNotEmpty == true ? thumbnails!.last['url'] : '';
 
                 if (videoId != null) {
                   results.add(Track(
                     id: videoId,
                     title: title,
                     artist: artist,
+                    sourceId: id,
                   ));
                 }
               }
