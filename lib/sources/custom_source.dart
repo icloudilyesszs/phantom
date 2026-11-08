@@ -94,17 +94,25 @@ class CustomSource implements MusicSource {
 
   @override
   Future<Uri> streamUri(Track track) async {
-    // Le décodeur tourne localement sur ton PC/iPhone, l'IP est donc validée par YouTube
     final yt = yt_explode.YoutubeExplode();
     try {
       final manifest = await yt.videos.streamsClient.getManifest(track.id);
-      final streamInfo = manifest.audioOnly.withHighestBitrate();
+      
+      // On filtre pour forcer le format MP4 (M4A/AAC), lu instantanément par Windows et iOS
+      final mp4Streams = manifest.audioOnly.where((stream) => 
+          stream.container.name == 'mp4' || stream.codec.mimeType.contains('mp4'));
+      
+      // On prend la meilleure qualité du format MP4 s'il existe, sinon on prend le défaut
+      final streamInfo = mp4Streams.isNotEmpty 
+          ? mp4Streams.withHighestBitrate() 
+          : manifest.audioOnly.withHighestBitrate();
+          
       yt.close();
       return streamInfo.url;
     } catch (e) {
       yt.close();
       print('Erreur de décryptage local: $e');
-      throw Exception("Impossible de lire : YouTube a bloqué le flux.");
+      throw Exception("Impossible de lire : flux bloqué.");
     }
   }
 }
