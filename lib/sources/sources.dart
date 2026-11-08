@@ -1,7 +1,7 @@
 import 'audius_source.dart';
 import 'local_source.dart';
 import 'music_source.dart';
-// import 'custom_source.dart';
+import 'custom_source.dart';
 
 /// Toutes les sources de musique de Phantom.
 class Sources {
@@ -9,11 +9,12 @@ class Sources {
 
   static final AudiusSource audius = AudiusSource();
   static final LocalSource local = LocalSource();
+  static final CustomSource custom = CustomSource();
 
   static final List<MusicSource> all = [
     audius,
     local,
-    // CustomSource(),
+    custom,
   ];
 
   static List<MusicSource> get searchable =>
