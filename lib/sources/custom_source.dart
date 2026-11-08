@@ -27,7 +27,7 @@ class CustomSource implements MusicSource {
         }
       },
       "query": query,
-      "params": "EgWKAQIIAWoMEAMQBBAJEA4QChAF" // Le filtre exact de BitChord pour les chansons
+      "params": "EgWKAQIIAWoMEAMQBBAJEA4QChAF"
     };
 
     try {
@@ -60,12 +60,20 @@ class CustomSource implements MusicSource {
                 artist = runs[0]?['text'] ?? 'Artiste inconnu';
               }
 
+              String? artUrl;
+              final thumbnails = song['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
+              if (thumbnails != null && thumbnails.isNotEmpty) {
+                // Récupère l'image avec la meilleure résolution disponible
+                artUrl = thumbnails.last['url']?.toString();
+              }
+
               if (videoId != null && title != null) {
                 results.add(Track(
                   id: videoId.toString(),
                   title: title.toString(),
                   artist: artist.toString(),
                   sourceId: id,
+                  artworkUrl: artUrl,
                 ));
               }
             }
