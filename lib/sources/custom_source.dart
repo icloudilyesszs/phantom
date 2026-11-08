@@ -1,11 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'music_source.dart';
 
-class CustomSource {
-  final String name = "Mon YouTube Music Perso";
+class CustomSource implements MusicSource {
+  @override
+  final String id = 'custom_youtube';
 
-  // 1. Recherche directement dans le vrai catalogue YouTube Music
-  Future<List>> search(String query) async {
+  @override
+  final String name = 'Mon YouTube Music Perso';
+
+  @override
+  final bool canSearch = true;
+
+  @override
+  Future<List<Track>> search(String query) async {
     final url = Uri.parse('https://music.youtube.com/youtubei/v1/search?key=AIzaSyA41KXq462b13wV8o3_2J0vN2V_K4c5Y9Q');
     
     final body = {
@@ -29,9 +37,8 @@ class CustomSource {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List> results = [];
+        List<Track> results = [];
 
-        // Navigation dans le JSON complexe de YouTube pour extraire les chansons
         final contents = data['contents']?['tabbedSearchResultsRenderer']?['tabs']?[0]?['tabRenderer']?['content']?['sectionListRenderer']?['contents'] ?? [];
         
         for (var section in contents) {
@@ -41,27 +48,24 @@ class CustomSource {
             for (var item in items) {
               final songRenderer = item['musicResponsiveListItemRenderer'];
               if (songRenderer != null) {
-                // Récupérer l'ID de la vidéo/musique
                 final videoId = songRenderer['playlistItemData']?['videoId'] ?? 
                                 songRenderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['navigationEndpoint']?['watchEndpoint']?['videoId'];
                 
-                // Titre
                 final title = songRenderer['flexColumns']?[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Titre inconnu';
                 
-                // Artiste
                 final artist = songRenderer['flexColumns']?[1]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] ?? 'Artiste inconnu';
                 
-                // Miniature
                 final thumbnails = songRenderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
                 final artUrl = thumbnails?.isNotEmpty == true ? thumbnails!.last['url'] : '';
 
                 if (videoId != null) {
-                  results.add({
-                    'id': videoId,
-                    'title': title,
-                    'artist': artist,
-                    'artUrl': artUrl,
-                  });
+                  results.add(Track(
+                    id: videoId,
+                    title: title,
+                    artist: artist,
+                    artUrl: artUrl,
+                    source: id,
+                  ));
                 }
               }
             }
@@ -75,13 +79,13 @@ class CustomSource {
     return [];
   }
 
-  // 2. Accueil (laisse vide)
-  Future<List>> trending() async {
+  @override
+  Future<List<Track>> trending() async {
     return [];
   }
 
-  // 3. Récupère le flux audio direct de la musique sélectionnée
-  Future<String?> streamUri(String id) async {
+  @override
+  Future<String?> streamUri(Track track) async {
     final url = Uri.parse('https://music.youtube.com/youtubei/v1/player?key=AIzaSyA41KXq462b13wV8o3_2J0vN2V_K4c5Y9Q');
     
     final body = {
@@ -93,7 +97,7 @@ class CustomSource {
           "gl": "FR"
         }
       },
-      "videoId": id
+      "videoId": track.id
     };
 
     try {
@@ -107,7 +111,6 @@ class CustomSource {
         final data = jsonDecode(response.body);
         final adaptiveFormats = data['streamingData']?['adaptiveFormats'] as List? ?? [];
         
-        // Filtrer les formats audio et trier par qualité (bitrate)
         final audioFormats = adaptiveFormats.where((format) {
           final mimeType = format['mimeType'] as String? ?? '';
           return mimeType.contains('audio');
