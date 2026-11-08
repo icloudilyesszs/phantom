@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt_explode;
 import 'music_source.dart';
 import '../models/track.dart';
 
@@ -63,7 +64,6 @@ class CustomSource implements MusicSource {
               String? artUrl;
               final thumbnails = song['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List?;
               if (thumbnails != null && thumbnails.isNotEmpty) {
-                // Récupère l'image avec la meilleure résolution disponible
                 artUrl = thumbnails.last['url']?.toString();
               }
 
@@ -94,27 +94,17 @@ class CustomSource implements MusicSource {
 
   @override
   Future<Uri> streamUri(Track track) async {
-    final url = Uri.parse('https://pipedapi.kavin.rocks/streams/${track.id}');
-    
+    // Le décodeur tourne localement sur ton PC/iPhone, l'IP est donc validée par YouTube
+    final yt = yt_explode.YoutubeExplode();
     try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final audioStreams = data['audioStreams'] as List? ?? [];
-        
-        // Trie pour récupérer le flux audio avec la meilleure qualité
-        audioStreams.sort((a, b) => (b['bitrate'] ?? 0).compareTo(a['bitrate'] ?? 0));
-        
-        if (audioStreams.isNotEmpty) {
-          final rawUrl = audioStreams.first['url'] as String?;
-          if (rawUrl != null) {
-            return Uri.parse(rawUrl);
-          }
-        }
-      }
+      final manifest = await yt.videos.streamsClient.getManifest(track.id);
+      final streamInfo = manifest.audioOnly.withHighestBitrate();
+      yt.close();
+      return streamInfo.url;
     } catch (e) {
-      print('Erreur stream Piped: $e');
+      yt.close();
+      print('Erreur de décryptage local: $e');
+      throw Exception("Impossible de lire : YouTube a bloqué le flux.");
     }
-    throw Exception("Impossible de récupérer le flux audio YouTube");
   }
 }
